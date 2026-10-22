@@ -17,7 +17,8 @@ cart API, hashed dependency locks and tests are in `cart/`. `tests/fixtures/razo
 is a local payment simulator used only by the integrated developer preview.
 Local SQS-compatible processing is implemented; AWS deployment and GitOps promotion remain pending.
 All changes after repository initialization go through feature branches and pull requests.
-These private repositories use GitHub Free; review enforcement requires the planned Team upgrade.
+These repositories are public on GitHub Free. Protected `main` requires a CODEOWNER
+approval, passing CI checks and resolved conversations; administrators follow the same rules.
 
 ## Application delivery contract
 
