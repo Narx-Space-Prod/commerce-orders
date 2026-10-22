@@ -11,7 +11,11 @@ public class OrdersController {
  private final JdbcTemplate db;private final ObjectMapper mapper;private final AccountsController accounts;
  private final HttpClient http=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
  private final String cart=System.getenv().getOrDefault("CART_URL","http://localhost:8082");
- public OrdersController(JdbcTemplate db,ObjectMapper mapper,AccountsController accounts){this.db=db;this.mapper=mapper;this.accounts=accounts;}
+ private final Optional<software.amazon.awssdk.services.sqs.SqsClient> queue;
+ private final String queueUrl;
+ public OrdersController(JdbcTemplate db,ObjectMapper mapper,AccountsController accounts,
+  Optional<software.amazon.awssdk.services.sqs.SqsClient> queue,
+  @org.springframework.beans.factory.annotation.Value("${delivery.queue-url}")String queueUrl){this.db=db;this.mapper=mapper;this.accounts=accounts;this.queue=queue;this.queueUrl=queueUrl;}
  static void validateSession(String s){if(s==null||!s.matches("[a-f0-9]{64}"))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"invalid_session");}
  static void validateKey(String s){if(s==null||!s.matches("[A-Za-z0-9_-]{8,64}"))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"invalid_key");}
  private JsonNode get(String url,String rid){try{var res=http.send(HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(3)).header("X-Request-ID",rid).GET().build(),HttpResponse.BodyHandlers.ofString());if(res.statusCode()!=200)throw new IllegalStateException();return mapper.readTree(res.body());}catch(InterruptedException e){Thread.currentThread().interrupt();throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE);}catch(Exception e){throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE);}}
@@ -33,7 +37,10 @@ public class OrdersController {
   return Map.of("orders",rows.stream().limit(20).map(this::decode).toList(),"page",page,"hasMore",more);
  }
  @GetMapping("/health/live") public Map<String,String> live(){return Map.of("status","ok");}
- @GetMapping("/health/ready") public Map<String,String> ready(){db.queryForObject("SELECT 1",Integer.class);return Map.of("status","ok");}
+ @GetMapping("/health/ready") public Map<String,String> ready(){
+  try{db.queryForObject("SELECT 1",Integer.class);queue.ifPresent(client->client.getQueueAttributes(r->r.queueUrl(queueUrl)));return Map.of("status","ok");}
+  catch(RuntimeException unavailable){throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,"dependency_unavailable");}
+ }
  @PostMapping("/orders") @Transactional(timeout=15)
  public Map<String,Object> create(@RequestHeader("X-Session-ID")String session,@RequestHeader("Idempotency-Key")String key,@RequestHeader(value="X-Request-ID",defaultValue="unknown")String rid,@RequestHeader(value="X-Account-Token",required=false)String token,@RequestBody(required=false)Delivery delivery){
   validateSession(session);validateKey(key);UUID customer=accounts.customer(token);validateDelivery(delivery);db.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?,0))",session+":"+key);
@@ -54,6 +61,10 @@ public class OrdersController {
  @GetMapping("/orders/{id}") public Map<String,Object> read(@PathVariable UUID id,@RequestHeader("X-Session-ID")String session,@RequestHeader(value="X-Account-Token",required=false)String token){
   validateSession(session);UUID customer=identity(token);
   var rows=customer==null?db.queryForList("SELECT id,total,currency,items,created_at,delivery,status,payment_status,provider_order_id,provider_payment_id,refund_id FROM orders WHERE id=? AND session_id=? AND customer_id IS NULL",id,session):db.queryForList("SELECT id,total,currency,items,created_at,delivery,status,payment_status,provider_order_id,provider_payment_id,refund_id FROM orders WHERE id=? AND customer_id=?",id,customer);
-  if(rows.isEmpty())throw new ResponseStatusException(HttpStatus.NOT_FOUND);return decode(rows.getFirst());
+  if(rows.isEmpty())throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+  var result=decode(rows.getFirst());
+  var receipts=db.queryForList("SELECT id,amount,currency,created_at FROM payment_receipts WHERE order_id=?",id);
+  result.put("receipt",receipts.isEmpty()?null:receipts.getFirst());
+  return result;
  }
 }
