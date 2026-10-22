@@ -9,18 +9,40 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   workflows:
-    uses: Narx-Space-Prod/platform-ci/.github/workflows/workflows.yml@e94e5e70af3edaf124cd7fbe86ec76f36160fdbf
+    uses: Narx-Space-Prod/platform-ci/.github/workflows/workflows.yml@f907416baf6ffca41626f10df94f7631d86de8c0
   orders:
-    uses: Narx-Space-Prod/platform-ci/.github/workflows/service.yml@e94e5e70af3edaf124cd7fbe86ec76f36160fdbf
+    needs: workflows
+    permissions:
+      contents: read
+      id-token: write
+    uses: Narx-Space-Prod/platform-ci/.github/workflows/service.yml@f907416baf6ffca41626f10df94f7631d86de8c0
     with:
       component: orders
   cart:
-    uses: Narx-Space-Prod/platform-ci/.github/workflows/service.yml@e94e5e70af3edaf124cd7fbe86ec76f36160fdbf
+    needs: workflows
+    permissions:
+      contents: read
+      id-token: write
+    uses: Narx-Space-Prod/platform-ci/.github/workflows/service.yml@f907416baf6ffca41626f10df94f7631d86de8c0
     with:
       component: cart
       context: cart
+  release:
+    needs: [workflows, orders, cart]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DELIVERY_ENABLED == 'true'
+    permissions:
+      contents: write
+    uses: Narx-Space-Prod/platform-ci/.github/workflows/release.yml@f907416baf6ffca41626f10df94f7631d86de8c0
+    with:
+      releases: |
+        [
+          {"component":"orders","image":"${{ needs.orders.outputs.image }}","digest":"${{ needs.orders.outputs.digest }}"},
+          {"component":"cart","image":"${{ needs.cart.outputs.image }}","digest":"${{ needs.cart.outputs.digest }}"}
+        ]
+    secrets:
+      release-app-private-key: ${{ secrets.NARX_RELEASE_APP_PRIVATE_KEY }}
