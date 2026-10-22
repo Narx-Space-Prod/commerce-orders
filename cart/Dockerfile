@@ -1,9 +1,9 @@
-FROM python:3.12-slim@sha256:05cda9777409a9c3ffddd94a4c476b79f0769a0b4857f0c7ed9226b6800b0d6f AS dependencies
+FROM python:3.12-alpine@sha256:92abd2ba1bdfb48b1e2ac224b582dd1558d0d4bb11c903b126b5bf9c448fd656 AS dependencies
 WORKDIR /build
 COPY requirements*.txt ./
 RUN pip wheel --require-hashes --no-cache-dir --wheel-dir=/wheels -r requirements-dev.txt
 
-FROM python:3.12-slim@sha256:05cda9777409a9c3ffddd94a4c476b79f0769a0b4857f0c7ed9226b6800b0d6f AS test
+FROM python:3.12-alpine@sha256:92abd2ba1bdfb48b1e2ac224b582dd1558d0d4bb11c903b126b5bf9c448fd656 AS test
 WORKDIR /src
 COPY --from=dependencies /wheels /wheels
 COPY requirements*.txt ./
@@ -13,7 +13,7 @@ COPY tests ./tests
 ENV PYTHONDONTWRITEBYTECODE=1
 RUN python -m pytest -q tests -o cache_dir=/tmp/pytest-cache
 
-FROM python:3.12-slim@sha256:05cda9777409a9c3ffddd94a4c476b79f0769a0b4857f0c7ed9226b6800b0d6f AS runtime
+FROM python:3.12-alpine@sha256:92abd2ba1bdfb48b1e2ac224b582dd1558d0d4bb11c903b126b5bf9c448fd656 AS runtime
 WORKDIR /app
 COPY --from=dependencies /wheels /wheels
 COPY requirements.txt ./

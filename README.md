@@ -71,3 +71,15 @@ only its database. Only the API should receive application traffic.
 The local Compose preview has persistent ElasticMQ queues, five-receive DLQ redrive
 and a separate opt-in failure exercise. DOC.md explains commands, metrics, retries,
 replay, retention limitations and real AWS validation still required.
+
+## Delivery
+
+PRs run shared workflow/secret checks, then component Docker tests, a non-root runtime
+check, a blocking HIGH/CRITICAL vulnerability scan and SBOM generation. Trusted main
+can publish the exact tested image to ECR through OIDC and sign its digest, provenance
+and SBOM. Publishing is held unless `DELIVERY_ENABLED=true`; no AWS resources are
+created by this repository. GitOps verifies release records and promotes the same
+digests through reviewed dev, QA and production PRs.
+
+App credentials, AWS setup and local registry refresh are documented in the single
+[project guide](https://github.com/Narx-Space-Prod/platform-infrastructure/blob/main/DOC.md).
