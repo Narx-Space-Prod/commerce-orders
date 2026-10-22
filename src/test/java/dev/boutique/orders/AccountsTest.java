@@ -25,7 +25,7 @@ class AccountsTest {
     }
 
     @Test void checksDeliveryBeforeStoringIt() {
-        assertDoesNotThrow(()->OrdersController.validateDelivery(null)); // Existing guest checkout stays compatible.
+        assertThrows(RuntimeException.class,()->OrdersController.validateDelivery(null));
         assertDoesNotThrow(()->OrdersController.validateDelivery(new OrdersController.Delivery("Ada","1 Demo Lane","Test City","12345","Example")));
         assertThrows(RuntimeException.class,()->OrdersController.validateDelivery(new OrdersController.Delivery("Ada","","Test City","12345","Example")));
         assertThrows(RuntimeException.class,()->OrdersController.validateDelivery(new OrdersController.Delivery("Ada","1 Demo Lane\nInjected","Test City","12345","Example")));

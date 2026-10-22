@@ -10,7 +10,7 @@ import java.net.URI;import java.net.http.*;import java.time.Duration;import java
 public class OrdersController {
  private final JdbcTemplate db;private final ObjectMapper mapper;private final AccountsController accounts;
  private final HttpClient http=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
- private final String catalogue=System.getenv().getOrDefault("CATALOGUE_URL","http://localhost:8081"),cart=System.getenv().getOrDefault("CART_URL","http://localhost:8082");
+ private final String cart=System.getenv().getOrDefault("CART_URL","http://localhost:8082");
  public OrdersController(JdbcTemplate db,ObjectMapper mapper,AccountsController accounts){this.db=db;this.mapper=mapper;this.accounts=accounts;}
  static void validateSession(String s){if(s==null||!s.matches("[a-f0-9]{64}"))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"invalid_session");}
  static void validateKey(String s){if(s==null||!s.matches("[A-Za-z0-9_-]{8,64}"))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"invalid_key");}
@@ -20,7 +20,7 @@ public class OrdersController {
  private UUID identity(String token){return token==null?null:accounts.customer(token);}
  record Delivery(String name,String address,String city,String postalCode,String country) {}
  static void validateDelivery(Delivery delivery){
-  if(delivery==null)return;
+  if(delivery==null)throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"invalid_delivery");
   for(String value:new String[]{delivery.name(),delivery.address(),delivery.city(),delivery.postalCode(),delivery.country()})
    if(value==null||value.strip().isEmpty()||value.length()>200||value.chars().anyMatch(Character::isISOControl))
     throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"invalid_delivery");
@@ -36,22 +36,19 @@ public class OrdersController {
  @GetMapping("/health/ready") public Map<String,String> ready(){db.queryForObject("SELECT 1",Integer.class);return Map.of("status","ok");}
  @PostMapping("/orders") @Transactional(timeout=15)
  public Map<String,Object> create(@RequestHeader("X-Session-ID")String session,@RequestHeader("Idempotency-Key")String key,@RequestHeader(value="X-Request-ID",defaultValue="unknown")String rid,@RequestHeader(value="X-Account-Token",required=false)String token,@RequestBody(required=false)Delivery delivery){
-  validateSession(session);validateKey(key);validateDelivery(delivery);UUID customer=identity(token);if(customer!=null&&delivery==null)throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"invalid_delivery");db.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?,0))",session+":"+key);
+  validateSession(session);validateKey(key);UUID customer=accounts.customer(token);validateDelivery(delivery);db.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?,0))",session+":"+key);
   var old=find(session,key,customer);if(!old.isEmpty())return decode(old.getFirst());
   var requested=get(cart+"/carts/"+session,rid).path("items");if(!requested.isArray()||requested.isEmpty())throw new ResponseStatusException(HttpStatus.CONFLICT,"empty_cart");
   var prices=new HashMap<String,JsonNode>();
   for(var product:db.queryForList("SELECT id,name,price,currency,stock,active FROM products ORDER BY id FOR UPDATE")){
    if(Boolean.TRUE.equals(product.get("active")))prices.put(product.get("id").toString(),mapper.valueToTree(product));
   }
-  if(customer==null&&!"true".equals(System.getenv("COMMERCE_ENABLED"))){
-   prices.clear();get(catalogue+"/products",rid).forEach(p->prices.put(p.path("id").asText(),p));
-  }
   String currency=null;
   var items=new ArrayList<Map<String,Object>>();int total=0;
   for(var i:requested){String id=i.path("productId").asText();int q=i.path("quantity").asInt();var p=prices.get(id);if(p==null||q<1||q>20)throw new ResponseStatusException(HttpStatus.CONFLICT,"invalid_cart");int price=p.path("price").asInt();if(price<=0||currency!=null&&!p.path("currency").asText().equals(currency))throw new ResponseStatusException(HttpStatus.CONFLICT);currency=p.path("currency").asText();
-  if(customer!=null&&db.update("UPDATE products SET stock=stock-?,version=version+1,updated_at=CURRENT_TIMESTAMP WHERE id=? AND active=TRUE AND stock>=?",q,id,q)!=1)throw new ResponseStatusException(HttpStatus.CONFLICT,"out_of_stock");
+  if(db.update("UPDATE products SET stock=stock-?,version=version+1,updated_at=CURRENT_TIMESTAMP WHERE id=? AND active=TRUE AND stock>=?",q,id,q)!=1)throw new ResponseStatusException(HttpStatus.CONFLICT,"out_of_stock");
   total=Math.addExact(total,Math.multiplyExact(price,q));items.add(Map.of("productId",id,"name",p.path("name").asText(),"quantity",q,"price",price,"currency",currency));}
-  try{db.update("INSERT INTO orders(id,session_id,idempotency_key,total,currency,items,customer_id,delivery,status,payment_status,stock_reserved) VALUES (?,?,?,?,?,?::jsonb,?,?::jsonb,?,?,?)",UUID.randomUUID(),session,key,total,currency,mapper.writeValueAsString(items),customer,delivery==null?null:mapper.writeValueAsString(delivery),customer==null?"confirmed":"payment_pending",customer==null?"demo":"unpaid",customer!=null);}catch(org.springframework.dao.DuplicateKeyException e){throw new ResponseStatusException(HttpStatus.CONFLICT,"idempotency_key_in_use");}catch(tools.jackson.core.JacksonException e){throw new IllegalStateException(e);}
+  try{db.update("INSERT INTO orders(id,session_id,idempotency_key,total,currency,items,customer_id,delivery,status,payment_status,stock_reserved) VALUES (?,?,?,?,?,?::jsonb,?,?::jsonb,?,?,?)",UUID.randomUUID(),session,key,total,currency,mapper.writeValueAsString(items),customer,delivery==null?null:mapper.writeValueAsString(delivery),"payment_pending","unpaid",true);}catch(org.springframework.dao.DuplicateKeyException e){throw new ResponseStatusException(HttpStatus.CONFLICT,"idempotency_key_in_use");}catch(tools.jackson.core.JacksonException e){throw new IllegalStateException(e);}
   return decode(find(session,key,customer).getFirst());
  }
  @GetMapping("/orders/{id}") public Map<String,Object> read(@PathVariable UUID id,@RequestHeader("X-Session-ID")String session,@RequestHeader(value="X-Account-Token",required=false)String token){

@@ -39,6 +39,8 @@ the cart uses port 8082 and Redis. Required configuration and the integrated sta
 commands are in the project guide and `platform-gitops/local/compose.yaml`.
 Payment provider credentials stay on the backend. Only Razorpay test keys are accepted.
 The local simulator is not the Razorpay sandbox and must not be deployed to production.
+Checkout requires a signed-in customer and delivery information. The migrated app
+does not retain the old anonymous demo-order path that confirmed orders without payment.
 
 The orders API exposes Prometheus metrics at `/actuator/prometheus`.
 Health endpoints follow `/health/live` and `/health/ready`.
