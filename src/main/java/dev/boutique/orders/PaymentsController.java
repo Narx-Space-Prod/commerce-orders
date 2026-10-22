@@ -91,6 +91,12 @@ class PaymentsController {
             if(Set.of("paid","refunding","refunded").contains(row.get("payment_status")))return;
             if(!"payment_pending".equals(row.get("status")))throw conflict("order_not_payable");
             db.update("UPDATE orders SET provider_payment_id=?,payment_status='paid',status='confirmed',updated_at=CURRENT_TIMESTAMP WHERE id=?",paymentId,row.get("id"));
+            // The payment update and its event commit together, even when the queue is down.
+            var event = new PaidOrderEvent(UUID.randomUUID(), "order.paid", 1,
+                (UUID) row.get("id"), ((Number) row.get("total")).intValue(),
+                row.get("currency").toString(), paymentId);
+            db.update("INSERT INTO order_outbox(id,order_id,payload) VALUES (?,?,?::jsonb)",
+                event.eventId(), event.orderId(), mapper.writeValueAsString(event));
         });
     }
 

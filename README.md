@@ -5,7 +5,8 @@ Owner: Orders team.
 Customer accounts, checkout, payment verification, order history, refunds and order
 state. Inventory reservation and order insertion currently share one SQL transaction
 in the commerce core. The cart service lives in `cart/` under the same owning team
-and has its own image and deployment. The planned outbox and worker are not implemented yet.
+and has its own image and deployment. The API, outbox publisher and receipt worker
+share one Java image and run as independently scalable processes.
 
 Project guide: [DOC.md](https://github.com/Narx-Space-Prod/platform-infrastructure/blob/main/DOC.md).
 
@@ -14,7 +15,7 @@ Project guide: [DOC.md](https://github.com/Narx-Space-Prod/platform-infrastructu
 The Spring Boot/Java application, SQL migrations and tests are in `src/`. The Python
 cart API, hashed dependency locks and tests are in `cart/`. `tests/fixtures/razorpay.py`
 is a local payment simulator used only by the integrated developer preview.
-AWS deployment, SQS/outbox processing and GitOps promotion remain to be implemented.
+Local SQS-compatible processing is implemented; AWS deployment and GitOps promotion remain pending.
 All changes after repository initialization go through feature branches and pull requests.
 These private repositories use GitHub Free; review enforcement requires the planned Team upgrade.
 
@@ -50,3 +51,22 @@ Source provenance (licenses retained):
 
 - [boutique-orders, revision 662f897](https://github.com/Local-Narx-Space/boutique-orders/tree/662f897d6275714680f37c699073fe847714a0d1)
 - [boutique-cart, revision 7b52f23](https://github.com/Local-Narx-Space/boutique-cart/tree/7b52f23a63ec8f1a9a942cebdf93420e9ef9b99b)
+
+## Background delivery roles
+
+`DELIVERY_ROLE=api` is the default and always records an outbox event with each newly
+confirmed payment. `publisher` sends due events; `worker` creates an internal payment
+receipt and inbox marker atomically, then acknowledges the message. These roles use
+the same tested image, not additional builds. Order detail returns `receipt` when ready.
+No email, shipping call or tax invoice is generated. Existing paid orders are not backfilled.
+
+Required background configuration: `DELIVERY_QUEUE_URL` and `AWS_REGION`, plus the
+same database configuration as the API. Real AWS uses the default SDK credential
+chain. Only the local preview sets `DELIVERY_LOCAL=true` and `DELIVERY_ENDPOINT`.
+Visibility defaults to 60 seconds, exceeding the 10-second processing transaction.
+Worker/publisher readiness checks both database and queue; API readiness requires
+only its database. Only the API should receive application traffic.
+
+The local Compose preview has persistent ElasticMQ queues, five-receive DLQ redrive
+and a separate opt-in failure exercise. DOC.md explains commands, metrics, retries,
+replay, retention limitations and real AWS validation still required.
