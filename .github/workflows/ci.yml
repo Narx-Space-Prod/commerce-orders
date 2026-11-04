@@ -14,13 +14,14 @@ concurrency:
 
 jobs:
   workflows:
-    uses: Narx-Space-Prod/platform-ci/.github/workflows/workflows.yml@f907416baf6ffca41626f10df94f7631d86de8c0
+    uses: Narx-Space-Prod/platform-ci/.github/workflows/workflows.yml@ba41b7532a626ba47e9bf7b74ba56c4a6808228a
   orders:
     needs: workflows
     permissions:
       contents: read
       id-token: write
-    uses: Narx-Space-Prod/platform-ci/.github/workflows/service.yml@f907416baf6ffca41626f10df94f7631d86de8c0
+      packages: write
+    uses: Narx-Space-Prod/platform-ci/.github/workflows/service.yml@ba41b7532a626ba47e9bf7b74ba56c4a6808228a
     with:
       component: orders
   cart:
@@ -28,7 +29,8 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: Narx-Space-Prod/platform-ci/.github/workflows/service.yml@f907416baf6ffca41626f10df94f7631d86de8c0
+      packages: write
+    uses: Narx-Space-Prod/platform-ci/.github/workflows/service.yml@ba41b7532a626ba47e9bf7b74ba56c4a6808228a
     with:
       component: cart
       context: cart
@@ -37,7 +39,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DELIVERY_ENABLED == 'true'
     permissions:
       contents: write
-    uses: Narx-Space-Prod/platform-ci/.github/workflows/release.yml@f907416baf6ffca41626f10df94f7631d86de8c0
+    uses: Narx-Space-Prod/platform-ci/.github/workflows/release.yml@ba41b7532a626ba47e9bf7b74ba56c4a6808228a
     with:
       releases: |
         [
