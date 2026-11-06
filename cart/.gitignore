@@ -1,0 +1,6 @@
+
+coverage/
+.coverage
+coverage.xml
+coverage.out
+analysis/

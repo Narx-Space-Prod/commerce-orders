@@ -5,3 +5,9 @@ __pycache__
 target
 .env*
 test-reports
+
+coverage/
+.coverage
+coverage.xml
+coverage.out
+analysis/
