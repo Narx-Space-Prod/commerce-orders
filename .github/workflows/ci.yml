@@ -1,4 +1,5 @@
-name: CI
+name: 01 - Application CI
+run-name: CI | ${{ github.event.pull_request.number && format('PR #{0}', github.event.pull_request.number) || github.sha }}
 
 on:
   pull_request:
@@ -13,62 +14,16 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  workflows:
-    uses: Narx-Space-Prod/platform-ci/.github/workflows/workflows.yml@666b596743c0fd43a0ba3ed1efb8dc7b89b7593e
-  orders:
-    needs: workflows
-    uses: Narx-Space-Prod/platform-ci/.github/workflows/build.yml@35ff4ae9d506db00dbc2adc7ec027382bbe99db3
-    with:
-      component: orders
-  cart:
-    needs: workflows
-    uses: Narx-Space-Prod/platform-ci/.github/workflows/build.yml@35ff4ae9d506db00dbc2adc7ec027382bbe99db3
-    with:
-      component: cart
-      context: cart
-  sonar:
-    needs: [orders, cart]
-    uses: Narx-Space-Prod/platform-ci/.github/workflows/sonar.yml@5c5e186e8b028a62ed002af36595281429505659
-    with:
-      organization: ${{ vars.SONAR_ORGANIZATION }}
-      project-key: ${{ vars.SONAR_PROJECT_KEY }}
-      server-url: ${{ vars.SONAR_SERVER_URL || 'https://sonarcloud.io' }}
-    secrets:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-  orders-publish:
-    needs: [orders, sonar]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DELIVERY_ENABLED == 'true' && needs.orders.outputs.changed == 'true'
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
-    uses: Narx-Space-Prod/platform-ci/.github/workflows/service.yml@35ff4ae9d506db00dbc2adc7ec027382bbe99db3
-    with:
-      component: orders
-      changed: ${{ needs.orders.outputs.changed == 'true' }}
-  cart-publish:
-    needs: [cart, sonar]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DELIVERY_ENABLED == 'true' && needs.cart.outputs.changed == 'true'
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
-    uses: Narx-Space-Prod/platform-ci/.github/workflows/service.yml@35ff4ae9d506db00dbc2adc7ec027382bbe99db3
-    with:
-      component: cart
-      changed: ${{ needs.cart.outputs.changed == 'true' }}
-  release:
-    needs: [orders-publish, cart-publish]
-    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DELIVERY_ENABLED == 'true' && (needs.orders-publish.result == 'success' || needs.orders-publish.result == 'skipped') && (needs.cart-publish.result == 'success' || needs.cart-publish.result == 'skipped') && (needs.orders-publish.result == 'success' || needs.cart-publish.result == 'success') }}
+  pipeline:
+    name: Application
     permissions:
       contents: write
       actions: read
-    uses: Narx-Space-Prod/platform-ci/.github/workflows/release.yml@35ff4ae9d506db00dbc2adc7ec027382bbe99db3
+      id-token: write
+      packages: write
+    uses: Narx-Space-Prod/platform-ci/.github/workflows/application.yml@b336bad03f08ba6cebc428468719a32ace56de6a
     with:
-      releases: |
-        [
-          {"component":"orders","image":"${{ needs.orders-publish.outputs.image }}","digest":"${{ needs.orders-publish.outputs.digest }}"},
-          {"component":"cart","image":"${{ needs.cart-publish.outputs.image }}","digest":"${{ needs.cart-publish.outputs.digest }}"}
-        ]
+      application: orders
     secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       NARX_RELEASE_APP_PRIVATE_KEY: ${{ secrets.NARX_RELEASE_APP_PRIVATE_KEY }}
