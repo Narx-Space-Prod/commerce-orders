@@ -1,5 +1,6 @@
 name: 01 - Application CI
-run-name: CI | ${{ github.event.pull_request.number && format('PR #{0}', github.event.pull_request.number) || github.sha }}
+run-name: >-
+  CI | ${{ github.event.pull_request.number && format('PR #{0}', github.event.pull_request.number) || github.sha }}
 
 on:
   pull_request:
