@@ -28,7 +28,7 @@ jobs:
       context: cart
   sonar:
     needs: [orders, cart]
-    uses: Narx-Space-Prod/platform-ci/.github/workflows/sonar.yml@35ff4ae9d506db00dbc2adc7ec027382bbe99db3
+    uses: Narx-Space-Prod/platform-ci/.github/workflows/sonar.yml@5c5e186e8b028a62ed002af36595281429505659
     with:
       organization: ${{ vars.SONAR_ORGANIZATION }}
       project-key: ${{ vars.SONAR_PROJECT_KEY }}
