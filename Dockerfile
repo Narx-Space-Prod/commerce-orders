@@ -6,7 +6,15 @@ RUN mvn -B dependency:go-offline
 
 FROM dependencies AS test
 COPY src ./src
-RUN mvn -B verify
+RUN mvn -B verify \
+    && mvn -B org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy-dependencies \
+       -DincludeScope=test -DoutputDirectory=target/sonar-libraries
+
+FROM scratch AS analysis
+COPY --from=test /src/target/site/jacoco/jacoco.xml /jacoco.xml
+COPY --from=test /src/target/classes /classes
+COPY --from=test /src/target/test-classes /test-classes
+COPY --from=test /src/target/sonar-libraries /libraries
 
 FROM eclipse-temurin:21-jre-alpine@sha256:51ab5e3302e7141ce665ca3ea85e8b5cd648eafbc3c0c90dd79d6537684e4555 AS runtime
 RUN apk add --no-cache --upgrade 'libexpat>=2.9.0-r0' 'brotli-libs>=1.2.1-r0' 'zlib>=1.3.2-r1' \

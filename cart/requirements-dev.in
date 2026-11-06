@@ -2,3 +2,4 @@
 -r requirements.in
 pytest
 httpx
+coverage==7.17.2

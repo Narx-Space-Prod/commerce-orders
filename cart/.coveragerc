@@ -1,0 +1,7 @@
+[run]
+relative_files = True
+source = .
+omit = tests/*
+
+[xml]
+output = coverage.xml

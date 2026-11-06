@@ -8,10 +8,14 @@ WORKDIR /src
 COPY --from=dependencies /wheels /wheels
 COPY requirements*.txt ./
 RUN pip install --require-hashes --no-cache-dir --no-index --find-links=/wheels -r requirements-dev.txt
-COPY app.py ./
+COPY app.py .coveragerc ./
 COPY tests ./tests
 ENV PYTHONDONTWRITEBYTECODE=1
-RUN python -m pytest -q tests -o cache_dir=/tmp/pytest-cache
+RUN python -m coverage run -m pytest -q tests -o cache_dir=/tmp/pytest-cache \
+    && python -m coverage xml
+
+FROM scratch AS analysis
+COPY --from=test /src/coverage.xml /coverage.xml
 
 FROM python:3.12-alpine@sha256:92abd2ba1bdfb48b1e2ac224b582dd1558d0d4bb11c903b126b5bf9c448fd656 AS runtime
 WORKDIR /app

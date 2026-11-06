@@ -10,3 +10,8 @@ node_modules/
 __pycache__/
 coverage/
 target/
+
+.coverage
+coverage.xml
+coverage.out
+analysis/

@@ -83,3 +83,21 @@ digests through reviewed dev, QA and production PRs.
 
 App credentials, AWS setup and local registry refresh are documented in the single
 [project guide](https://github.com/Narx-Space-Prod/platform-infrastructure/blob/main/DOC.md).
+
+## Java and Cart coverage
+
+`mvn -B verify` runs Java tests with JaCoCo and creates
+`target/site/jacoco/jacoco.xml` plus an HTML report in that directory.
+For Cart, enter `cart/`, install `requirements-dev.txt` with
+`python -m pip install --require-hashes -r requirements-dev.txt`, then run
+`python -m coverage run -m pytest -q tests` and `python -m coverage xml`.
+Cart's relative-path XML is normalised to `cart/` when consumed by the combined
+Sonar project.
+
+Each Dockerfile has an `analysis` scratch target exporting the existing test
+results. Java additionally exports compiled classes and dependencies, eliminating
+Sonar's separate Maven compilation. Both builds run concurrently; one combined
+Sonar quality gate imports both reports before either image can publish.
+If only one component changes, only that runtime is published. Missing reports
+or failed quality/security checks block release. Runtime images retain neither
+coverage agents nor report files.
