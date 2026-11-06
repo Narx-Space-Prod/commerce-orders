@@ -15,8 +15,17 @@ concurrency:
 jobs:
   workflows:
     uses: Narx-Space-Prod/platform-ci/.github/workflows/workflows.yml@666b596743c0fd43a0ba3ed1efb8dc7b89b7593e
-  orders:
+  sonar:
     needs: workflows
+    uses: Narx-Space-Prod/platform-ci/.github/workflows/sonar.yml@c6f9cca79fa7533c4a2313746c4fb50d0e7fa839
+    with:
+      organization: ${{ vars.SONAR_ORGANIZATION }}
+      project-key: ${{ vars.SONAR_PROJECT_KEY }}
+      server-url: ${{ vars.SONAR_SERVER_URL || 'https://sonarcloud.io' }}
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  orders:
+    needs: [workflows, sonar]
     permissions:
       contents: read
       id-token: write
@@ -25,7 +34,7 @@ jobs:
     with:
       component: orders
   cart:
-    needs: workflows
+    needs: [workflows, sonar]
     permissions:
       contents: read
       id-token: write
