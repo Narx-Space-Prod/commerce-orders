@@ -22,7 +22,7 @@ jobs:
       actions: read
       id-token: write
       packages: write
-    uses: Narx-Space-Prod/platform-ci/.github/workflows/application.yml@f46a854434b38f1740f16a6c9458cb5d95a4dece
+    uses: Narx-Space-Prod/platform-ci/.github/workflows/application.yml@bd8d63d0520b77b6ccd0acda9947e598774d1a9b
     with:
       application: orders
     secrets:
