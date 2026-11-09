@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.util.*;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
@@ -17,28 +18,38 @@ import tools.jackson.databind.*;
 @Component
 class RazorpayClient {
 
-  final String keyId = System.getenv().getOrDefault("RAZORPAY_KEY_ID", "");
-  private final String secret = System.getenv().getOrDefault("RAZORPAY_KEY_SECRET", "");
-  private final String webhookSecret = System.getenv().getOrDefault("RAZORPAY_WEBHOOK_SECRET", "");
-  private final String base = System.getenv().getOrDefault(
-    "RAZORPAY_API_BASE",
-    "https://api.razorpay.com/v1"
-  );
+  final String keyId;
+  private final String secret;
+  private final String webhookSecret;
+  private final String base;
+  private final boolean allowFixture;
   private final HttpClient client = HttpClient.newBuilder()
     .connectTimeout(Duration.ofSeconds(2))
     .followRedirects(HttpClient.Redirect.NEVER)
     .build();
   private final ObjectMapper mapper;
 
+  @Autowired
   RazorpayClient(ObjectMapper mapper) {
+    this(mapper, System.getenv());
+  }
+
+  // Explicit immutable configuration also lets tests use an isolated loopback
+  // provider without changing process-wide environment variables.
+  RazorpayClient(ObjectMapper mapper, Map<String, String> configuration) {
     this.mapper = mapper;
+    this.keyId = configuration.getOrDefault("RAZORPAY_KEY_ID", "");
+    this.secret = configuration.getOrDefault("RAZORPAY_KEY_SECRET", "");
+    this.webhookSecret = configuration.getOrDefault("RAZORPAY_WEBHOOK_SECRET", "");
+    this.base = configuration.getOrDefault("RAZORPAY_API_BASE", "https://api.razorpay.com/v1");
+    this.allowFixture = "true".equals(configuration.get("ALLOW_PAYMENT_TEST_FIXTURE"));
     if (!keyId.isEmpty() && !keyId.startsWith("rzp_test_")) throw new IllegalStateException(
       "Only Razorpay test keys are supported"
     );
     var uri = URI.create(base);
     if (
       !base.equals("https://api.razorpay.com/v1") &&
-      !("true".equals(System.getenv("ALLOW_PAYMENT_TEST_FIXTURE")) &&
+      !(allowFixture &&
         keyId.equals("rzp_test_fixture") &&
         Set.of("127.0.0.1", "localhost", "razorpay-fixture").contains(uri.getHost()) &&
         "http".equals(uri.getScheme()))
@@ -50,9 +61,7 @@ class RazorpayClient {
   }
 
   boolean fixtureEnabled() {
-    return (
-      keyId.equals("rzp_test_fixture") && "true".equals(System.getenv("ALLOW_PAYMENT_TEST_FIXTURE"))
-    );
+    return (keyId.equals("rzp_test_fixture") && allowFixture);
   }
 
   JsonNode fixtureCapture(String providerOrderId) {

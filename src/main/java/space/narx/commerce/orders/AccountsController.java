@@ -31,9 +31,18 @@ public class AccountsController {
   static String email(String input) {
     if (input == null) throw bad("invalid_email");
     String normalized = input.strip().toLowerCase(Locale.ROOT);
-    if (normalized.length() > 254 || !normalized.matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+")) throw bad(
-      "invalid_email"
-    );
+    int at = normalized.indexOf('@');
+    int dot = normalized.lastIndexOf('.');
+    if (
+      normalized.length() > 254 ||
+      at <= 0 ||
+      at != normalized.lastIndexOf('@') ||
+      dot <= at + 1 ||
+      dot == normalized.length() - 1 ||
+      normalized.chars().anyMatch(Character::isWhitespace)
+    ) {
+      throw bad("invalid_email");
+    }
     return normalized;
   }
 

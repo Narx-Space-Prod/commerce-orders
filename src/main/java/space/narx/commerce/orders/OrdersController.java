@@ -20,7 +20,7 @@ public class OrdersController {
   private final HttpClient http = HttpClient.newBuilder()
     .connectTimeout(Duration.ofSeconds(2))
     .build();
-  private final String cart = System.getenv().getOrDefault("CART_URL", "http://localhost:8082");
+  private final String cart;
   private final Optional<software.amazon.awssdk.services.sqs.SqsClient> queue;
   private final String queueUrl;
 
@@ -29,13 +29,17 @@ public class OrdersController {
     ObjectMapper mapper,
     AccountsController accounts,
     Optional<software.amazon.awssdk.services.sqs.SqsClient> queue,
-    @org.springframework.beans.factory.annotation.Value("${delivery.queue-url}") String queueUrl
+    @org.springframework.beans.factory.annotation.Value("${delivery.queue-url}") String queueUrl,
+    @org.springframework.beans.factory.annotation.Value(
+      "${CART_URL:http://localhost:8082}"
+    ) String cart
   ) {
     this.db = db;
     this.mapper = mapper;
     this.accounts = accounts;
     this.queue = queue;
     this.queueUrl = queueUrl;
+    this.cart = cart;
   }
 
   static void validateSession(String s) {
